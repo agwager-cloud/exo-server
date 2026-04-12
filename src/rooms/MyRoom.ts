@@ -249,7 +249,12 @@ checkScoreTokenPickups() {
 
       if (!canMove) return;
 
-      if (this.state.phase === "in_game" && player.frozenActive) return;
+      if (
+        this.state.phase === "in_game" &&
+        (player.frozenActive || player.magnetLocked)
+      ) {
+        return;
+      }
 
       player.x = message.x;
       player.y = message.y;
@@ -285,7 +290,7 @@ checkScoreTokenPickups() {
   this.checkScoreTokenPickups();
   this.checkPowerUpPickups();
   this.updatePowerUpEffects();
-  this.applyMagnetEffects();
+  this.applyMagnetEffects(deltaTime);
 });
   }
 
@@ -482,7 +487,7 @@ checkScoreTokenPickups() {
     if (type === "magnet") {
       // keep magnet individual in both FFA and Teams
       player.magnetActive = true;
-      player.magnetUntil = now + 10000;
+      player.magnetUntil = now + 6000;
       player.magnetTargetSessionId = "";
     }
 
@@ -535,9 +540,22 @@ checkScoreTokenPickups() {
       }
 
       if (player.magnetActive && now > player.magnetUntil) {
+        if (player.magnetTargetSessionId) {
+          const target = this.state.players.get(player.magnetTargetSessionId);
+          if (target) {
+            target.magnetLocked = false;
+            target.magnetLockedUntil = 0;
+          }
+        }
+
         player.magnetActive = false;
         player.magnetUntil = 0;
         player.magnetTargetSessionId = "";
+      }
+
+      if (player.magnetLocked && now > player.magnetLockedUntil) {
+        player.magnetLocked = false;
+        player.magnetLockedUntil = 0;
       }
 
       if (player.invisibleActive && now > player.invisibleUntil) {
@@ -569,48 +587,103 @@ checkScoreTokenPickups() {
   });
 }
 
-  applyMagnetEffects() {
-    const entries: { sessionId: string; player: Player }[] = [];
+  applyMagnetEffects(deltaTime: number) {
+  const entries: { sessionId: string; player: Player }[] = [];
 
-    this.state.players.forEach((player: Player, sessionId: string) => {
-      player.magnetTargetSessionId = "";
-      entries.push({ sessionId, player });
-    });
+  this.state.players.forEach((player: Player, sessionId: string) => {
+    entries.push({ sessionId, player });
+  });
+
+  // First clear stale locks from players who are no longer a target
+  for (const entry of entries) {
+    const player = entry.player;
+    if (!player.magnetLocked) continue;
+
+    let stillTargeted = false;
 
     for (const source of entries) {
-      const magnetPlayer = source.player;
-      if (!magnetPlayer.magnetActive) continue;
-
-      let closestSessionId = "";
-      let closestDistance = Number.MAX_VALUE;
-
-            for (const target of entries) {
-        if (target.sessionId === source.sessionId) continue;
-        if (target.player.invisibleActive) continue;
-
-        if (
-          this.state.gameMode === "teams" &&
-          magnetPlayer.team !== "" &&
-          magnetPlayer.team === target.player.team
-        ) {
-          continue;
-        }
-        const dx = magnetPlayer.x - target.player.x;
-        const dy = magnetPlayer.y - target.player.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-
-        if (dist <= 0) continue;
-       // if (dist > this.MAGNET_RANGE) continue;
-
-        if (dist < closestDistance) {
-          closestDistance = dist;
-          closestSessionId = target.sessionId;
-        }
+      if (
+        source.player.magnetActive &&
+        source.player.magnetTargetSessionId === entry.sessionId
+      ) {
+        stillTargeted = true;
+        break;
       }
+    }
 
-      magnetPlayer.magnetTargetSessionId = closestSessionId;
+    if (!stillTargeted && Date.now() > player.magnetLockedUntil) {
+      player.magnetLocked = false;
+      player.magnetLockedUntil = 0;
     }
   }
+
+  for (const source of entries) {
+    const magnetPlayer = source.player;
+    if (!magnetPlayer.magnetActive) continue;
+
+    let closestSessionId = "";
+    let closestDistance = Number.MAX_VALUE;
+    let closestTarget: Player | null = null;
+
+    for (const target of entries) {
+      if (target.sessionId === source.sessionId) continue;
+      if (target.player.invisibleActive) continue;
+
+      if (
+        this.state.gameMode === "teams" &&
+        magnetPlayer.team !== "" &&
+        magnetPlayer.team === target.player.team
+      ) {
+        continue;
+      }
+
+      const dx = magnetPlayer.x - target.player.x;
+      const dy = magnetPlayer.y - target.player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist <= 0) continue;
+
+      if (dist < closestDistance) {
+        closestDistance = dist;
+        closestSessionId = target.sessionId;
+        closestTarget = target.player;
+      }
+    }
+
+    magnetPlayer.magnetTargetSessionId = closestSessionId;
+
+    if (!closestTarget) continue;
+
+    // Lock target so they cannot resist with input
+    closestTarget.magnetLocked = true;
+    closestTarget.magnetLockedUntil = magnetPlayer.magnetUntil;
+
+    const dx = magnetPlayer.x - closestTarget.x;
+    const dy = magnetPlayer.y - closestTarget.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < 1) continue;
+
+    const safeStopDistance = this.playerSize * 0.9;
+
+    if (dist <= safeStopDistance) {
+      continue;
+    }
+
+    const dirX = dx / dist;
+    const dirY = dy / dist;
+
+    // Strong but smooth server-side pull
+    const pullSpeed = 520; // tuneable
+    const maxStep = pullSpeed * (deltaTime / 1000);
+    const moveAmount = Math.min(maxStep, dist - safeStopDistance);
+
+    closestTarget.x += dirX * moveAmount;
+    closestTarget.y += dirY * moveAmount;
+
+    this.keepPlayerInBounds(closestTarget);
+  }
+}
 
   resetPlayerEffects(player: Player) {
     player.shieldActive = false;
@@ -620,12 +693,16 @@ checkScoreTokenPickups() {
     player.invisibleActive = false;
     player.frozenActive = false;
 
+    player.magnetLocked = false;
+    
+
     player.shieldUntil = 0;
     player.speedUntil = 0;
     player.doublePointsUntil = 0;
     player.magnetUntil = 0;
     player.invisibleUntil = 0;
     player.frozenUntil = 0;
+    player.magnetLockedUntil = 0;
 
     player.magnetTargetSessionId = "";
   }

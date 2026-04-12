@@ -13,6 +13,10 @@ export class Player extends Schema {
   @type("boolean") speedActive: boolean = false;
   @type("boolean") doublePointsActive: boolean = false;
   @type("boolean") magnetActive: boolean = false;
+
+  @type("boolean") magnetLocked: boolean = false;
+  @type("number") magnetLockedUntil: number = 0;
+
   @type("boolean") invisibleActive: boolean = false;
   @type("boolean") frozenActive: boolean = false;
 
