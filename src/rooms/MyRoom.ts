@@ -17,7 +17,7 @@ readonly POWER_UP_TYPES = ["speed", "shield", "double", "magnet", "invisible", "
 
   readonly SCORE_TOKEN_VALUE = 10;
   readonly SCORE_TOKEN_RADIUS = 55;
-  readonly SCORE_TOKEN_LIFETIME = 8000;
+  
   readonly MAX_SCORE_TOKENS = 200;
 
   powerUpSpawnElapsed = 0;
@@ -26,8 +26,13 @@ readonly POWER_UP_TYPES = ["speed", "shield", "double", "magnet", "invisible", "
     return Math.floor(1000 + Math.random() * 9000).toString();
   }
 
+
+
   spawnScoreTokenForPlayer(ownerSessionId: string, player: Player) {
   if (this.state.scoreTokens.size >= this.MAX_SCORE_TOKENS) return;
+
+  // ✅ Prevent duplicate tokens for the same player
+  if (this.playerHasActiveScoreToken(ownerSessionId)) return;
 
   const id = `score_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
   const spawn = this.getScoreTokenSpawnPositionNearPlayer(player);
@@ -38,11 +43,24 @@ readonly POWER_UP_TYPES = ["speed", "shield", "double", "magnet", "invisible", "
   token.y = spawn.y;
   token.value = this.SCORE_TOKEN_VALUE;
   token.ownerSessionId = ownerSessionId;
-  token.expiresAt = Date.now() + this.SCORE_TOKEN_LIFETIME;
+  token.expiresAt = 0;
   token.team = player.team || "none";
 
   this.state.scoreTokens.set(id, token);
 }
+
+playerHasActiveScoreToken(ownerSessionId: string): boolean {
+  let hasToken = false;
+
+  this.state.scoreTokens.forEach((token: ScoreToken) => {
+    if (token.ownerSessionId === ownerSessionId) {
+      hasToken = true;
+    }
+  });
+
+  return hasToken;
+}
+
 
 getScoreTokenSpawnPositionNearPlayer(player: Player) {
   const minDistance = 80;
@@ -72,11 +90,7 @@ checkScoreTokenPickups() {
   const toRemove: string[] = [];
 
   this.state.scoreTokens.forEach((token: ScoreToken, tokenId: string) => {
-    if (Date.now() > token.expiresAt) {
-      toRemove.push(tokenId);
-      return;
-    }
-
+    
     const owner = this.state.players.get(token.ownerSessionId);
     if (!owner) {
       toRemove.push(tokenId);
@@ -171,28 +185,30 @@ checkScoreTokenPickups() {
     });
 
     this.onMessage("answer_result", (client, message: { correct?: boolean }) => {
-      const player = this.state.players.get(client.sessionId);
-      if (!player) return;
-      if (this.state.phase !== "in_game") return;
+  const player = this.state.players.get(client.sessionId);
+  if (!player) return;
+  if (this.state.phase !== "in_game") return;
 
-      player.totalAnswers += 1;
+  // Ignore any extra correct submits while their token is still active
+  if (message.correct && this.playerHasActiveScoreToken(client.sessionId)) {
+    return;
+  }
 
-      if (message.correct) {
-        player.correctAnswers += 1;
-        player.currentStreak += 1;
+  player.totalAnswers += 1;
 
-        if (player.currentStreak > player.longestStreak) {
-          player.longestStreak = player.currentStreak;
-        }
+  if (message.correct) {
+    player.correctAnswers += 1;
+    player.currentStreak += 1;
 
-        this.spawnScoreTokenForPlayer(client.sessionId, player);
-      } else {
-        player.currentStreak = 0;
-      }
-      
-      
+    if (player.currentStreak > player.longestStreak) {
+      player.longestStreak = player.currentStreak;
+    }
 
-    });
+    this.spawnScoreTokenForPlayer(client.sessionId, player);
+  } else {
+    player.currentStreak = 0;
+  }
+});
 
 
     this.onMessage("return_to_lobby", (client) => {
