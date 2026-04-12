@@ -16,7 +16,7 @@ readonly POWER_UP_TYPES = ["speed", "shield", "double", "magnet", "invisible", "
   readonly MAGNET_RANGE = 220;
 
   readonly SCORE_TOKEN_VALUE = 10;
-  readonly SCORE_TOKEN_RADIUS = 40;
+  readonly SCORE_TOKEN_RADIUS = 55;
   readonly SCORE_TOKEN_LIFETIME = 8000;
   readonly MAX_SCORE_TOKENS = 200;
 
@@ -59,6 +59,29 @@ getScoreTokenSpawnPositionNearPlayer(player: Player) {
     x: Math.max(margin, Math.min(this.worldWidth - margin, Math.round(x))),
     y: Math.max(margin, Math.min(this.worldHeight - margin, Math.round(y))),
   };
+}
+
+getRandomWorldSpawn(margin = 140) {
+  return {
+    x: margin + Math.floor(Math.random() * (this.worldWidth - margin * 2)),
+    y: margin + Math.floor(Math.random() * (this.worldHeight - margin * 2)),
+  };
+}
+
+isSpawnFarEnough(
+  x: number,
+  y: number,
+  used: { x: number; y: number }[],
+  minDistance: number
+) {
+  for (const pos of used) {
+    const dx = pos.x - x;
+    const dy = pos.y - y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < minDistance) return false;
+  }
+  return true;
 }
 
 checkScoreTokenPickups() {
@@ -764,20 +787,33 @@ checkScoreTokenPickups() {
   }
 
     resetPlayersForNewRound() {
-    const centerX = this.worldWidth / 2;
-    const centerY = this.worldHeight / 2;
-    const spawnRadius = 180;
-    let index = 0;
+  const used: { x: number; y: number }[] = [];
+  const minDistance = this.state.players.size <= 10 ? 260 : 180;
 
-    this.state.players.forEach((player: Player) => {
-      const angle = (Math.PI * 2 * index) / Math.max(1, this.state.players.size);
-      player.x = centerX + Math.cos(angle) * spawnRadius;
-      player.y = centerY + Math.sin(angle) * spawnRadius;
+  this.state.players.forEach((player: Player) => {
+    let spawn = this.getRandomWorldSpawn();
+    let found = false;
 
-      this.keepPlayerInBounds(player);
-      index += 1;
-    });
-  }
+    for (let attempt = 0; attempt < 30; attempt++) {
+      const candidate = this.getRandomWorldSpawn();
+
+      if (this.isSpawnFarEnough(candidate.x, candidate.y, used, minDistance)) {
+        spawn = candidate;
+        found = true;
+        break;
+      }
+    }
+
+    if (!found) {
+      spawn = this.getRandomWorldSpawn();
+    }
+
+    player.x = spawn.x;
+    player.y = spawn.y;
+    this.keepPlayerInBounds(player);
+    used.push({ x: player.x, y: player.y });
+  });
+}
 
   startLobbyCountdown(durationSeconds: number) {
     this.clearStealInterval();
