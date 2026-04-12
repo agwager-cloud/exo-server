@@ -13,7 +13,7 @@ readonly POWER_UP_TYPES = ["speed", "shield", "double", "magnet", "invisible", "
   readonly MAX_POWER_UPS = 3;
   readonly POWER_UP_RADIUS = 30;
 
-  readonly MAGNET_RANGE = 220;
+  //readonly MAGNET_RANGE = 2000;
 
   readonly SCORE_TOKEN_VALUE = 10;
   readonly SCORE_TOKEN_RADIUS = 55;
@@ -66,22 +66,6 @@ getRandomWorldSpawn(margin = 140) {
     x: margin + Math.floor(Math.random() * (this.worldWidth - margin * 2)),
     y: margin + Math.floor(Math.random() * (this.worldHeight - margin * 2)),
   };
-}
-
-isSpawnFarEnough(
-  x: number,
-  y: number,
-  used: { x: number; y: number }[],
-  minDistance: number
-) {
-  for (const pos of used) {
-    const dx = pos.x - x;
-    const dy = pos.y - y;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-
-    if (dist < minDistance) return false;
-  }
-  return true;
 }
 
 checkScoreTokenPickups() {
@@ -260,7 +244,7 @@ checkScoreTokenPickups() {
 
       const canMove =
         this.state.phase === "lobby" ||
-        this.state.phase === "countdown" ||
+     //   this.state.phase === "countdown" ||
         this.state.phase === "in_game";
 
       if (!canMove) return;
@@ -498,7 +482,7 @@ checkScoreTokenPickups() {
     if (type === "magnet") {
       // keep magnet individual in both FFA and Teams
       player.magnetActive = true;
-      player.magnetUntil = now + 5000;
+      player.magnetUntil = now + 10000;
       player.magnetTargetSessionId = "";
     }
 
@@ -616,7 +600,7 @@ checkScoreTokenPickups() {
         const dist = Math.sqrt(dx * dx + dy * dy);
 
         if (dist <= 0) continue;
-        if (dist > this.MAGNET_RANGE) continue;
+       // if (dist > this.MAGNET_RANGE) continue;
 
         if (dist < closestDistance) {
           closestDistance = dist;
@@ -760,18 +744,34 @@ checkScoreTokenPickups() {
   }
 
   getWorldSpawnPosition() {
-    const centerX = this.worldWidth / 2;
-    const centerY = this.worldHeight / 2;
-    const radius = 220;
-    const angle = Math.random() * Math.PI * 2;
-    const distance = 60 + Math.random() * radius;
+  const margin = 160;
 
-    return {
-      x: Math.round(centerX + Math.cos(angle) * distance),
-      y: Math.round(centerY + Math.sin(angle) * distance),
-    };
+  return {
+    x: Math.round(
+      margin + Math.random() * (this.worldWidth - margin * 2)
+    ),
+    y: Math.round(
+      margin + Math.random() * (this.worldHeight - margin * 2)
+    ),
+  };
+}
+
+  isSpawnFarEnough(
+  x: number,
+  y: number,
+  used: { x: number; y: number }[],
+  minDistance: number
+) {
+  for (const pos of used) {
+    const dx = pos.x - x;
+    const dy = pos.y - y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (dist < minDistance) return false;
   }
 
+  return true;
+}
 
     keepPlayerInBounds(player: Player) {
     const half = this.playerSize / 2;
@@ -788,14 +788,15 @@ checkScoreTokenPickups() {
 
     resetPlayersForNewRound() {
   const used: { x: number; y: number }[] = [];
-  const minDistance = this.state.players.size <= 10 ? 260 : 180;
+  const playerCount = this.state.players.size;
+  const minDistance = playerCount <= 8 ? 320 : playerCount <= 16 ? 240 : 180;
 
   this.state.players.forEach((player: Player) => {
-    let spawn = this.getRandomWorldSpawn();
+    let spawn = this.getWorldSpawnPosition();
     let found = false;
 
-    for (let attempt = 0; attempt < 30; attempt++) {
-      const candidate = this.getRandomWorldSpawn();
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const candidate = this.getWorldSpawnPosition();
 
       if (this.isSpawnFarEnough(candidate.x, candidate.y, used, minDistance)) {
         spawn = candidate;
@@ -805,12 +806,13 @@ checkScoreTokenPickups() {
     }
 
     if (!found) {
-      spawn = this.getRandomWorldSpawn();
+      spawn = this.getWorldSpawnPosition();
     }
 
     player.x = spawn.x;
     player.y = spawn.y;
     this.keepPlayerInBounds(player);
+
     used.push({ x: player.x, y: player.y });
   });
 }
