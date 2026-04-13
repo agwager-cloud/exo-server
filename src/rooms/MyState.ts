@@ -72,7 +72,6 @@ export class MyState extends Schema {
   @type({ map: Player }) players = new MapSchema<Player>();
   @type({ map: PowerUp }) powerUps = new MapSchema<PowerUp>();
   @type({ map: ScoreToken }) scoreTokens = new MapSchema<ScoreToken>();
-  
 
   @type("string") phase: string = "lobby";
   @type("boolean") gameStarted: boolean = false;
@@ -83,8 +82,10 @@ export class MyState extends Schema {
   @type("number") startTimestamp: number = 0;
   @type("number") winnerScore: number = 0;
   @type("string") selectedMap: string = "garden";
-  @type("string") gameMode: string = "ffa"; // "ffa" or "teams"
+  @type("string") gameMode: string = "ffa";
 
+  @type("number") countdownDisplaySeconds: number = 0;
+  @type("number") gameDisplaySeconds: number = 0;
 
   @type(QuestionSettings) questionSettings = new QuestionSettings();
 }

@@ -295,18 +295,39 @@ checkScoreTokenPickups() {
     });
 
     this.setSimulationInterval((deltaTime) => {
-  if (this.state.phase !== "in_game") return;
-
-  this.powerUpSpawnElapsed += deltaTime;
-  if (this.powerUpSpawnElapsed >= this.POWER_UP_SPAWN_INTERVAL) {
-    this.powerUpSpawnElapsed = 0;
-    this.spawnPowerUp();
+  if (this.state.phase === "countdown") {
+    const elapsed = (Date.now() - this.state.countdownStartTimestamp) / 1000;
+    this.state.countdownDisplaySeconds = Math.max(
+      1,
+      Math.ceil(this.state.countdownSeconds - elapsed)
+    );
+    return;
   }
 
-  this.checkScoreTokenPickups();
-  this.checkPowerUpPickups();
-  this.updatePowerUpEffects();
-  this.applyMagnetEffects(deltaTime);
+  if (this.state.phase === "in_game") {
+    const elapsed = (Date.now() - this.state.startTimestamp) / 1000;
+    this.state.gameDisplaySeconds = Math.max(
+      0,
+      Math.ceil(this.state.durationSeconds - elapsed)
+    );
+
+    this.powerUpSpawnElapsed += deltaTime;
+    if (this.powerUpSpawnElapsed >= this.POWER_UP_SPAWN_INTERVAL) {
+      this.powerUpSpawnElapsed = 0;
+      this.spawnPowerUp();
+    }
+
+    this.checkScoreTokenPickups();
+    this.checkPowerUpPickups();
+    this.updatePowerUpEffects();
+    this.applyMagnetEffects(deltaTime);
+    return;
+  }
+
+  if (this.state.phase === "lobby" || this.state.phase === "finished") {
+    this.state.countdownDisplaySeconds = 0;
+    this.state.gameDisplaySeconds = 0;
+  }
 });
   }
 
