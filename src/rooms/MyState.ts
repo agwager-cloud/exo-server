@@ -79,6 +79,7 @@ export class MyState extends Schema {
   @type("number") durationSeconds: number = 60;
   @type("number") countdownSeconds: number = 3;
   @type("number") countdownStartTimestamp: number = 0;
+  
   @type("number") startTimestamp: number = 0;
   @type("number") winnerScore: number = 0;
   @type("string") selectedMap: string = "garden";

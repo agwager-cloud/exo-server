@@ -4,7 +4,7 @@ import { MyRoom } from "./rooms/MyRoom.js";
 
 export default defineServer({
   rooms: {
-    exo_room: defineRoom(MyRoom),
+    exo_room: defineRoom(MyRoom).filterBy(["roomCode"]),
   },
 
   express: (app) => {

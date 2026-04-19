@@ -940,6 +940,8 @@ checkScoreTokenPickups() {
     this.state.countdownSeconds = 3;
     this.state.countdownStartTimestamp = Date.now();
     this.state.startTimestamp = 0;
+    this.state.countdownDisplaySeconds = this.state.countdownSeconds;
+this.state.gameDisplaySeconds = durationSeconds;
     this.state.winnerScore = 0;
     this.state.powerUps.clear();
     this.state.scoreTokens.clear();
@@ -985,9 +987,11 @@ checkScoreTokenPickups() {
     }
 
     this.clock.setTimeout(() => {
-      this.state.phase = "in_game";
-      this.state.gameStarted = true;
-      this.state.startTimestamp = Date.now();
+  this.state.phase = "in_game";
+  this.state.gameStarted = true;
+  this.state.startTimestamp = Date.now();
+  this.state.countdownDisplaySeconds = 0;
+  this.state.gameDisplaySeconds = this.state.durationSeconds;
 
       this.startStealInterval();
 
